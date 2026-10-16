@@ -25,7 +25,7 @@ jobs:
           curl -sfL -A "meadow-menu-build" "$URL" -o libs/ViaFabricPlus-4.4.15.jar
           ls -la libs
       - uses: gradle/actions/setup-gradle@v4
-        with: { gradle-version: 8.14 }
+        with: { gradle-version: 9.2.0 }
       - name: Build
         run: cd "$PROJECT_DIR" && gradle build
       - uses: actions/upload-artifact@v4
