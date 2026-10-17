@@ -9,8 +9,16 @@ jobs:
         with: { distribution: temurin, java-version: 21 }
       - name: Find project
         run: |
+          # The GitHub web uploader does not unpack zips, so a zip in the repo is unpacked here.
+          if [ -z "$(find . -name settings.gradle -not -path './.git/*' | head -n1)" ]; then
+            Z=$(find . -iname '*.zip' -not -path './.git/*' | head -n1)
+            echo "unpacking $Z"
+            mkdir -p unpacked && unzip -q -o "$Z" -d unpacked
+          fi
           F=$(find . -name settings.gradle -not -path './.git/*' | head -n1)
+          if [ -z "$F" ]; then echo "settings.gradle not found anywhere in the repo"; ls -R | head -50; exit 1; fi
           echo "PROJECT_DIR=$(dirname "$F")" >> $GITHUB_ENV
+          echo "project: $(dirname "$F")"
       - name: Download ViaFabricPlus 4.4.15 (unmodified)
         run: |
           cd "$PROJECT_DIR"
