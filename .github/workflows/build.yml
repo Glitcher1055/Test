@@ -28,6 +28,47 @@ jobs:
             --data-urlencode 'loaders=["fabric"]' --data-urlencode 'game_versions=["1.21.11"]' \
             | jq -r '[.[] | select(.version_number | startswith("4.4.15"))][0].files[] | select(.primary) | .url')
           curl -sfL "$URL" -o libs/ViaFabricPlus-4.4.15.jar
+      - name: Download YetAnotherConfigLib + Spatial GUI (unmodified, only if not in libs/)
+        run: |
+          cd "$PROJECT_DIR"
+          mkdir -p libs
+          get() { # $1 = modrinth project slug, $2 = output file, $3 = version prefix
+            if ls libs/$2-*.jar >/dev/null 2>&1; then echo "$2 already in repo"; return 0; fi
+            URL=$(curl -sf "https://api.modrinth.com/v2/project/$1/version" -G \
+              --data-urlencode 'loaders=["fabric"]' --data-urlencode 'game_versions=["1.21.11"]' \
+              | jq -r --arg v "$3" '[.[] | select(.version_number | startswith($v))][0].files[] | select(.primary) | .url')
+            curl -sfL "$URL" -o "libs/$2-$3.jar"
+          }
+          get yacl YetAnotherConfigLib 3.8.2
+          get spatial-gui SpatialGUI 1.8
+      - name: Download In-Game Account Switcher (IAS, unmodified, only if not in libs/)
+        run: |
+          cd "$PROJECT_DIR"
+          mkdir -p libs
+          if ls libs/IAS-*.jar >/dev/null 2>&1; then echo "IAS already in repo"; exit 0; fi
+          UA="shrine-build/1.0 (github actions)"
+          # Try the known slugs; take the 1.21.11 Fabric build (prefer 9.0.8, then the newest one).
+          for SLUG in in-game-account-switcher ias; do
+            JSON=$(curl -sfL -A "$UA" "https://api.modrinth.com/v2/project/$SLUG/version" || echo "[]")
+            echo "slug $SLUG: $(echo "$JSON" | jq 'length' 2>/dev/null || echo '?') versions"
+            URL=$(echo "$JSON" | jq -r '
+              [ .[] | select((.loaders | index("fabric")) and (.game_versions | index("1.21.11"))) ] as $c
+              | (([$c[] | select(.version_number | startswith("9.0.8"))] + $c) | .[0].files[] | select(.primary) | .url) // empty' 2>/dev/null | head -n1)
+            [ -n "$URL" ] && break
+          done
+          if [ -z "$URL" ]; then
+            echo "::error::IAS: no 1.21.11 Fabric build found on Modrinth (check the slug in build.yml)"
+            exit 1
+          fi
+          echo "IAS url: $URL"
+          curl -sfL -A "$UA" "$URL" -o libs/IAS-latest.jar || { echo "::error::IAS download failed"; exit 1; }
+          unzip -tq libs/IAS-latest.jar || { echo "::error::IAS file is not a valid jar"; exit 1; }
+          ls -la libs
+
+      - name: Check IAS is bundled
+        run: |
+          cd "$PROJECT_DIR"
+          ls libs/IAS-*.jar >/dev/null 2>&1 || { echo "::error::libs/IAS-*.jar missing - the avatar account switcher would not work"; exit 1; }
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: 9.2.0 }
       - name: Build
